@@ -1,0 +1,61 @@
+name: Build APK from Flutter ZIP
+
+on:
+  push:
+    branches: [ main ]       # Jalankan otomatis saat push ke branch main
+  workflow_dispatch:          # Memungkinkan build manual dari tab Actions
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'   # Distribusi Java yang umum digunakan untuk Flutter
+          java-version: '17'
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'      # Menggunakan channel stable Flutter
+          cache: true            # Mengaktifkan cache untuk mempercepat build berikutnya
+
+      - name: Extract Flutter Project ZIP
+        run: |
+          # Ganti 'flutter_project.zip' dengan nama file ZIP Anda yang ada di root repo
+          ZIP_FILE="flutter_project.zip"
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "❌ File ZIP ($ZIP_FILE) tidak ditemukan!"
+            exit 1
+          fi
+          mkdir -p ./flutter-source
+          unzip -q "$ZIP_FILE" -d ./flutter-source
+          echo "✅ ZIP berhasil diekstrak."
+
+      - name: Get Flutter Dependencies
+        working-directory: ./flutter-source
+        run: flutter pub get
+
+      - name: Build Debug APK
+        working-directory: ./flutter-source
+        run: |
+          flutter build apk --debug
+          # Cek apakah APK benar-benar terbentuk
+          APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "⚠️ APK tidak ditemukan di lokasi default. Mencari file APK lain..."
+            find . -name "*.apk" -type f
+            exit 1
+          fi
+          echo "✅ APK berhasil dibangun di $APK_PATH"
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-debug-apk
+          path: ./flutter-source/build/app/outputs/flutter-apk/*.apk
+          retention-days: 7   # Artefak disimpan 7 hari (bisa diubah)
